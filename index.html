@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Agent Chat</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px;
+      border-bottom: 1px solid #1e2533;
+      background: #0f1117;
+      flex-shrink: 0;
+    }
+    .logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .header-info h1 { font-size: 16px; font-weight: 700; color: #f1f5f9; }
+    .header-info p  { font-size: 12px; color: #64748b; margin-top: 1px; }
+    .status-dot {
+      width: 8px; height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      margin-left: auto;
+      box-shadow: 0 0 6px #22c55e;
+    }
+
+    /* ── Chat Area ── */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      scroll-behavior: smooth;
+    }
+    #chat::-webkit-scrollbar { width: 4px; }
+    #chat::-webkit-scrollbar-track { background: transparent; }
+    #chat::-webkit-scrollbar-thumb { background: #1e2533; border-radius: 4px; }
+
+    /* ── Message ── */
+    .message {
+      display: flex;
+      gap: 12px;
+      max-width: 780px;
+      width: 100%;
+      margin: 0 auto;
+      animation: fadeUp .25s ease;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .message.user { flex-direction: row-reverse; }
+
+    .avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .avatar.ai   { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+    .avatar.user { background: #1e2533; }
+
+    .bubble {
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.65;
+      max-width: calc(100% - 44px);
+    }
+    .ai   .bubble {
+      background: #1a1f2e;
+      border: 1px solid #1e2533;
+      border-top-left-radius: 4px;
+      color: #e2e8f0;
+    }
+    .user .bubble {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-top-right-radius: 4px;
+      color: #fff;
+    }
+
+    /* ── Tool Card ── */
+    .tool-card {
+      background: #111827;
+      border: 1px solid #1e2533;
+      border-left: 3px solid #6366f1;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-top: 8px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+    .tool-card .tool-name {
+      font-weight: 700;
+      color: #a5b4fc;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tool-card .tool-status { font-size: 12px; }
+    .tool-card.running  { border-left-color: #f59e0b; }
+    .tool-card.running .tool-name { color: #fcd34d; }
+    .tool-card.done     { border-left-color: #22c55e; }
+    .tool-card.done .tool-name { color: #86efac; }
+    .tool-card.error    { border-left-color: #ef4444; }
+
+    /* ── Typing Indicator ── */
+    .typing { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+    .typing span {
+      width: 6px; height: 6px;
+      background: #6366f1;
+      border-radius: 50%;
+      animation: bounce 1.2s infinite;
+    }
+    .typing span:nth-child(2) { animation-delay: .2s; }
+    .typing span:nth-child(3) { animation-delay: .4s; }
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); }
+      30%            { transform: translateY(-6px); }
+    }
+
+    /* ── Suggested Prompts ── */
+    #suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      max-width: 780px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 16px;
+    }
+    .suggest-btn {
+      background: #1a1f2e;
+      border: 1px solid #1e2533;
+      border-radius: 20px;
+      padding: 7px 14px;
+      font-size: 12.5px;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+    .suggest-btn:hover {
+      border-color: #6366f1;
+      color: #a5b4fc;
+      background: #1e1f2e;
+    }
+
+    /* ── Input Area ── */
+    #input-area {
+      padding: 16px;
+      border-top: 1px solid #1e2533;
+      background: #0f1117;
+      flex-shrink: 0;
+    }
+    .input-box {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      max-width: 780px;
+      margin: 0 auto;
+      background: #1a1f2e;
+      border: 1px solid #1e2533;
+      border-radius: 14px;
+      padding: 10px 14px;
+      transition: border-color .2s;
+    }
+    .input-box:focus-within { border-color: #6366f1; }
+    #user-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #e2e8f0;
+      font-size: 14px;
+      resize: none;
+      line-height: 1.5;
+      max-height: 120px;
+      font-family: inherit;
+    }
+    #user-input::placeholder { color: #475569; }
+    #send-btn {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: opacity .2s;
+    }
+    #send-btn:hover   { opacity: .85; }
+    #send-btn:disabled { opacity: .4; cursor: not-allowed; }
+    #send-btn svg { width: 16px; height: 16px; fill: white; }
+
+    .input-hint {
+      text-align: center;
+      font-size: 11px;
+      color: #334155;
+      margin-top: 8px;
+    }
+
+    /* ── Welcome ── */
+    #welcome {
+      max-width: 780px;
+      margin: 0 auto 8px;
+      text-align: center;
+      padding: 40px 16px 0;
+    }
+    #welcome .icon { font-size: 40px; margin-bottom: 12px; }
+    #welcome h2 { font-size: 20px; font-weight: 700; color: #f1f5f9; }
+    #welcome p  { font-size: 14px; color: #64748b; margin-top: 8px; line-height: 1.6; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: #1e2533; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">🤖</div>
+  <div class="header-info">
+    <h1>AI Agent</h1>
+    <p>STT · 회의록 · 번역 · 자동화</p>
+  </div>
+  <div class="status-dot" id="status-dot" title="서버 연결됨"></div>
+
+  <!-- 녹음 버튼 -->
+  <button id="rec-btn" onclick="toggleRecording()">
+    <span id="rec-icon">🎙️</span>
+    <span id="rec-label">녹음 시작</span>
+  </button>
+  <div id="rec-status" style="display:none">
+    <span id="rec-timer">00:00</span>
+    <span id="rec-lines">0문장</span>
+  </div>
+</header>
+
+<style>
+  #rec-btn {
+    margin-left: 12px;
+    display: flex; align-items: center; gap: 6px;
+    background: #1a1f2e;
+    border: 1px solid #1e2533;
+    border-radius: 20px;
+    padding: 7px 14px;
+    color: #94a3b8;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  #rec-btn:hover { border-color: #6366f1; color: #a5b4fc; }
+  #rec-btn.recording {
+    background: #2d1515;
+    border-color: #ef4444;
+    color: #f87171;
+    animation: pulse-border 1.5s infinite;
+  }
+  @keyframes pulse-border {
+    0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.4); }
+    50%      { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+  }
+  #rec-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: #f87171;
+    margin-left: 4px;
+  }
+  #rec-timer { font-variant-numeric: tabular-nums; font-weight: 700; }
+  #rec-lines { color: #64748b; }
+</style>
+
+<!-- Chat -->
+<div id="chat">
+  <div id="welcome">
+    <div class="icon">✨</div>
+    <h2>무엇을 도와드릴까요?</h2>
+    <p>자연어로 말씀하시면 AI가 필요한 기능을 자동으로 실행합니다.<br/>
+       아래 예시를 클릭하거나 직접 입력해보세요.</p>
+  </div>
+</div>
+
+<!-- Suggested Prompts -->
+<div id="suggestions">
+  <button class="suggest-btn" onclick="sendSuggestion(this)">🎤 회의 녹음하고 회의록 만들어줘</button>
+  <button class="suggest-btn" onclick="sendSuggestion(this)">🌐 이 텍스트 영어로 번역해줘</button>
+  <button class="suggest-btn" onclick="sendSuggestion(this)">📝 지금까지 대화 요약해줘</button>
+  <button class="suggest-btn" onclick="sendSuggestion(this)">📊 회의록을 PPT로 만들어줘</button>
+</div>
+
+<!-- Input -->
+<div id="input-area">
+  <div class="input-box">
+    <textarea id="user-input" rows="1" placeholder="메시지를 입력하세요... (Enter 전송 / Shift+Enter 줄바꿈)"></textarea>
+    <button id="send-btn" onclick="sendMessage()">
+      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+  </div>
+  <p class="input-hint">AI가 의도를 파악해 적절한 도구를 자동으로 실행합니다</p>
+</div>
+
+<script>
+  // ── 설정 ──
+  const API_BASE = "http://localhost:8000";   // FastAPI 서버 주소
+
+  // ── 상태 ──
+  let isWaiting = false;
+
+  // ── DOM ──
+  const chat      = document.getElementById("chat");
+  const input     = document.getElementById("user-input");
+  const sendBtn   = document.getElementById("send-btn");
+  const welcome   = document.getElementById("welcome");
+  const suggestions = document.getElementById("suggestions");
+
+  // ── 자동 높이 조절 ──
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  });
+
+  // ── Enter 전송 ──
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  // ── 녹음 상태 ──
+  let isRecording   = false;
+  let recTimerIntvl = null;
+  let statusIntvl   = null;
+  let recSeconds    = 0;
+
+  function fmtTime(s) {
+    return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+  }
+
+  async function toggleRecording() {
+    if (!isRecording) {
+      // 시작
+      try {
+        const res = await fetch(`${API_BASE}/recording/start`, { method: "POST" });
+        const data = await res.json();
+        if (data.status !== "started") {
+          addMessage("ai", `❌ ${data.message}`); return;
+        }
+        isRecording = true;
+        recSeconds  = 0;
+        document.getElementById("rec-btn").classList.add("recording");
+        document.getElementById("rec-icon").textContent  = "⏹";
+        document.getElementById("rec-label").textContent = "녹음 중지";
+        document.getElementById("rec-status").style.display = "flex";
+        addMessage("ai", `<div class="tool-card running"><div class="tool-name">⚙️ 회의 녹음 중</div><div class="tool-status">말씀하세요. 중지 버튼을 누르면 회의록이 자동 생성됩니다.</div></div>`);
+
+        // 타이머
+        recTimerIntvl = setInterval(() => {
+          recSeconds++;
+          document.getElementById("rec-timer").textContent = fmtTime(recSeconds);
+        }, 1000);
+
+        // 전사 줄 수 폴링
+        statusIntvl = setInterval(async () => {
+          try {
+            const s = await fetch(`${API_BASE}/recording/status`);
+            const d = await s.json();
+            document.getElementById("rec-lines").textContent = `${d.line_count}문장`;
+          } catch {}
+        }, 2000);
+
+      } catch(e) {
+        addMessage("ai", `❌ 서버 연결 실패: ${e.message}`);
+      }
+
+    } else {
+      // 중지
+      clearInterval(recTimerIntvl);
+      clearInterval(statusIntvl);
+      isRecording = false;
+      document.getElementById("rec-btn").classList.remove("recording");
+      document.getElementById("rec-icon").textContent  = "🎙️";
+      document.getElementById("rec-label").textContent = "녹음 시작";
+      document.getElementById("rec-status").style.display = "none";
+
+      addMessage("ai", `<div class="tool-card running"><div class="tool-name">⚙️ 회의록 생성 중...</div><div class="tool-status">GPT-4o가 대화를 분석하고 있어요.</div></div>`);
+
+      try {
+        const res  = await fetch(`${API_BASE}/recording/stop`, { method: "POST" });
+        const data = await res.json();
+        if (data.minutes_path) {
+          addMessage("ai",
+            `<div class="tool-card done">` +
+            `<div class="tool-name">✅ 회의록 생성 완료</div>` +
+            `<div class="tool-status">📄 ${data.minutes_path}<br/>` +
+            `전사 문장 수: ${data.line_count}개</div></div>`
+          );
+        } else {
+          addMessage("ai", "전사된 내용이 없어 회의록을 생성하지 못했습니다.");
+        }
+      } catch(e) {
+        addMessage("ai", `❌ 오류: ${e.message}`);
+      }
+    }
+  }
+
+  // ── 서버 연결 상태 확인 ──
+  async function checkServer() {
+    try {
+      const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(2000) });
+      document.getElementById("status-dot").style.background =
+        res.ok ? "#22c55e" : "#ef4444";
+    } catch {
+      document.getElementById("status-dot").style.background = "#ef4444";
+      document.getElementById("status-dot").title = "서버 미연결 (백엔드를 실행해주세요)";
+    }
+  }
+  checkServer();
+  setInterval(checkServer, 5000);
+
+  // ── 메시지 추가 ──
+  function addMessage(role, content) {
+    welcome.style.display = "none";
+    suggestions.style.display = "none";
+
+    const wrap = document.createElement("div");
+    wrap.className = `message ${role}`;
+
+    const avatar = document.createElement("div");
+    avatar.className = `avatar ${role}`;
+    avatar.textContent = role === "ai" ? "🤖" : "🧑";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerHTML = content;
+
+    wrap.appendChild(avatar);
+    wrap.appendChild(bubble);
+    chat.appendChild(wrap);
+    chat.scrollTop = chat.scrollHeight;
+    return bubble;
+  }
+
+  // ── 타이핑 인디케이터 ──
+  function addTyping() {
+    const wrap = document.createElement("div");
+    wrap.className = "message ai";
+    wrap.id = "typing-indicator";
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar ai";
+    avatar.textContent = "🤖";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerHTML = `<div class="typing"><span></span><span></span><span></span></div>`;
+
+    wrap.appendChild(avatar);
+    wrap.appendChild(bubble);
+    chat.appendChild(wrap);
+    chat.scrollTop = chat.scrollHeight;
+    return wrap;
+  }
+
+  function removeTyping() {
+    document.getElementById("typing-indicator")?.remove();
+  }
+
+  // ── Tool Card ──
+  function makeToolCard(name, description, status = "running") {
+    const icons = { running: "⚙️", done: "✅", error: "❌" };
+    return `
+      <div class="tool-card ${status}">
+        <div class="tool-name">${icons[status]} ${name}</div>
+        <div class="tool-status">${description}</div>
+      </div>`;
+  }
+
+  // ── 메시지 전송 ──
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text || isWaiting) return;
+
+    isWaiting = true;
+    sendBtn.disabled = true;
+    input.value = "";
+    input.style.height = "auto";
+
+    // 사용자 메시지 표시
+    addMessage("user", text);
+
+    // 타이핑 인디케이터
+    const typing = addTyping();
+
+    try {
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text }),
+      });
+
+      removeTyping();
+
+      if (!res.ok) throw new Error(`서버 오류: ${res.status}`);
+
+      const data = await res.json();
+
+      // 도구 실행 카드 표시
+      let content = "";
+      if (data.tool_calls && data.tool_calls.length > 0) {
+        for (const tc of data.tool_calls) {
+          content += makeToolCard(tc.name, tc.description, tc.status);
+        }
+        content += "<br/>";
+      }
+
+      // AI 응답 텍스트
+      content += data.reply.replace(/\n/g, "<br/>");
+      addMessage("ai", content);
+
+    } catch (err) {
+      removeTyping();
+      addMessage("ai", `<span style="color:#f87171">❌ ${err.message}<br/>백엔드 서버가 실행 중인지 확인해주세요.<br/><code style="font-size:11px;color:#94a3b8">python server.py</code></span>`);
+    }
+
+    isWaiting = false;
+    sendBtn.disabled = false;
+    input.focus();
+  }
+
+  function sendSuggestion(btn) {
+    input.value = btn.textContent.replace(/^.{2}/, "").trim();
+    sendMessage();
+  }
+</script>
+</body>
+</html>
